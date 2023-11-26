@@ -5,6 +5,7 @@ const cors = require("cors");
 const app = express();
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 
 app.use(
   cors({
@@ -69,6 +70,7 @@ async function run() {
     await client.connect();
     const courseColluction = client.db("course-contest").collection("courses");
     const userColluction = client.db("course-contest").collection("user");
+    const bookingsColluction = client.db("course-contest").collection("booking");
 
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -86,6 +88,12 @@ async function run() {
 
     app.post("/logout", async (req, res) => {
       res.clearCookie("token", { maxAge: 0 }).send({ message: true });
+    });
+
+    app.post("/courses", async (req, res) => {
+      const body = req.body;
+      const result = await courseColluction.insertOne(body);
+      res.send(result);
     });
 
     app.get("/courses", async (req, res) => {
@@ -116,6 +124,13 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/creatorCourses", async (req, res) => {
+      const email = req.query?.email;
+      const query = { creatorEmail: email };
+      const result = await courseColluction.find(query).toArray();
+      res.send(result);
+    });
+
     app.get("/course-search", async (req, res) => {
       const search = req.query.search;
       const result = await courseColluction
@@ -123,6 +138,27 @@ async function run() {
         .toArray();
       res.send(result);
     });
+
+    app.delete("/courses/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await courseColluction.deleteOne(query);
+      res.send(result);
+    });
+
+    app.put('/courses/:id',async(req,res)=>{
+      const id = req.params.id;
+      const count = req.body.count
+      const filter = {_id: new ObjectId(id)};
+      const options = { upsert: true };
+      const updateDoc = {
+        $set:{
+          participationCount : count
+        }
+      }
+      const result = await courseColluction.updateOne(filter,updateDoc,options);
+      res.send(result)
+    })
 
     app.post("/users", async (req, res) => {
       const userInfo = req.body;
@@ -135,6 +171,39 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/courses/:id", async (req, res) => {
+      const id = req.params?.id;
+      const body = req.body
+      const query = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set: {
+          contestName: body?.contestName,
+          category: body?.category,
+          image: body?.image,
+          description: body?.description,
+          dedline: body?.dedline,
+          contestPrize: parseInt(body?.contestPrize),
+          prizeMoney: parseInt(body?.prizeMoney),
+        },
+      };
+      const result = await courseColluction.updateOne(query,updatedDoc,options)
+      res.send(result)
+    });
+
+    app.put('/courses/:id',async(req,res)=>{
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)};
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set: {
+          status:'approved'
+        }
+      };
+      const result = await courseColluction.updateOne(filter,updatedDoc,options)
+      res.send(result)
+    })
+
     app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
@@ -146,6 +215,34 @@ async function run() {
       const result = await userColluction.find().toArray();
       res.send(result);
     });
+
+    app.post('/bookings',async(req,res)=>{
+      const booking = req.body;
+      const result = bookingsColluction.insertOne(booking);
+      res.send(result)
+    })
+
+    app.get('/bookings',async(req,res)=>{
+      const email = req.query.email;
+      const filter = {email:email}
+      const result = await bookingsColluction.find(filter).toArray()
+      res.send(result)
+    })
+
+    app.post('/create-payment-intent',async(req,res)=>{
+      const {price} = req.body;
+      const amount = parseInt(price * 100)
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount : amount,
+        currency:'usd',
+        payment_method_types:['card']
+      })
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
