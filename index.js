@@ -71,6 +71,7 @@ async function run() {
     const courseColluction = client.db("course-contest").collection("courses");
     const userColluction = client.db("course-contest").collection("user");
     const bookingsColluction = client.db("course-contest").collection("booking");
+    const winnerColluction = client.db("course-contest").collection("winner");
 
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -212,10 +213,24 @@ async function run() {
       const updatedDoc = {
         $set:{
           winnerName:winnerInfo?.name,
-          winnerImage:winnerInfo?.userImage
+          winnerImage:winnerInfo?.userImage,
+          winnerStatus: 'selected'
         }
       }
       const result = await courseColluction.updateOne(filter,updatedDoc,options);
+      res.send(result)
+    })
+
+    app.post('/winners',async(req,res)=>{
+      const body = req.body;
+      const result = await winnerColluction.insertOne(body)
+      res.send(result)
+    })
+
+    app.get('/winners',async(req,res)=>{
+      const email = req.query.email;
+      const query = {winnerEmail:email};
+      const result = await winnerColluction.find(query).toArray();
       res.send(result)
     })
 
@@ -251,7 +266,7 @@ async function run() {
       res.send(result)
     })
 
-    app.get('/bookings',async(req,res)=>{
+    app.get('/bookings',verifyUser,async(req,res)=>{
       const email = req.query.email;
       const filter = {email:email}
       const result = await bookingsColluction.find(filter).toArray()
