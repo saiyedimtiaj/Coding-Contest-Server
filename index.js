@@ -191,7 +191,7 @@ async function run() {
       res.send(result)
     });
 
-    app.put('/courses/:id',async(req,res)=>{
+    app.put('/courses-status/:id',async(req,res)=>{
       const id = req.params.id;
       const filter = {_id: new ObjectId(id)};
       const options = { upsert: true };
@@ -201,6 +201,21 @@ async function run() {
         }
       };
       const result = await courseColluction.updateOne(filter,updatedDoc,options)
+      res.send(result)
+    })
+
+    app.patch('/select-winner/:id',async(req,res)=>{
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)};
+      const winnerInfo = req.body;
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set:{
+          winnerName:winnerInfo?.name,
+          winnerImage:winnerInfo?.userImage
+        }
+      }
+      const result = await courseColluction.updateOne(filter,updatedDoc,options);
       res.send(result)
     })
 
@@ -216,6 +231,20 @@ async function run() {
       res.send(result);
     });
 
+    app.patch('/users/:id',async(req,res)=>{
+      const id = req.params?.id;
+      const filter = {_id: new ObjectId(id)};
+      const role = req.body.role;
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set:{
+          role:role
+        }
+      }
+      const result = await userColluction.updateOne(filter,updatedDoc,options)
+      res.send(result)
+    })
+
     app.post('/bookings',async(req,res)=>{
       const booking = req.body;
       const result = bookingsColluction.insertOne(booking);
@@ -226,6 +255,13 @@ async function run() {
       const email = req.query.email;
       const filter = {email:email}
       const result = await bookingsColluction.find(filter).toArray()
+      res.send(result)
+    })
+
+    app.get('/bookings/:id',async(req,res)=>{
+      const id = req.params?.id;
+      const query = {contestId:id};
+      const result = await bookingsColluction.find(query).toArray()
       res.send(result)
     })
 
