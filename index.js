@@ -9,7 +9,7 @@ const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173","https://bespoke-brioche-882f5f.netlify.app"],
     credentials: true,
   })
 );
@@ -66,8 +66,7 @@ const verifyCreator = async (req, res, next) => {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+
     const courseColluction = client.db("course-contest").collection("courses");
     const userColluction = client.db("course-contest").collection("user");
     const bookingsColluction = client.db("course-contest").collection("booking");
@@ -118,7 +117,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/courses/:id", async (req, res) => {
+    app.get("/courses/:id",verifyUser, async (req, res) => {
       const id = req.params?.id;
       const query = { _id: new ObjectId(id) };
       const result = await courseColluction.findOne(query);
@@ -171,6 +170,11 @@ async function run() {
       const result = await userColluction.insertOne(userInfo);
       res.send(result);
     });
+
+    app.get('/userCount',async(req,res)=>{
+      const total = await userColluction.estimatedDocumentCount();
+      res.send({total})
+    })
 
     app.patch("/courses/:id", async (req, res) => {
       const id = req.params?.id;
@@ -241,8 +245,10 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/users", async (req, res) => {
-      const result = await userColluction.find().toArray();
+    app.get("/users", verifyUser, async (req, res) => {
+      const skip = parseInt(req?.query?.skip)
+      const limit = parseInt(req?.query?.limit)
+      const result = await userColluction.find().skip(skip * limit).limit(limit).toArray();
       res.send(result);
     });
 
@@ -260,6 +266,8 @@ async function run() {
       res.send(result)
     })
 
+    // app.put('/user')
+
     app.post('/bookings',async(req,res)=>{
       const booking = req.body;
       const result = bookingsColluction.insertOne(booking);
@@ -268,7 +276,13 @@ async function run() {
 
     app.get('/bookings',verifyUser,async(req,res)=>{
       const email = req.query.email;
-      const filter = {email:email}
+      const filter = {}
+      if(req.query.email !== req.decoded.email){
+        return res.status(401).send({message:'forviden access'})
+      }
+      if(req.query?.email){
+        filter.email = email
+      }
       const result = await bookingsColluction.find(filter).toArray()
       res.send(result)
     })
